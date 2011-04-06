@@ -1,0 +1,675 @@
+<!doctype html>
+<!--
+ Copyright 2011 Primary Technology Ltd
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU Affero General Public License as
+ published by the Free Software Foundation, either version 3 of the
+ License, or (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Affero General Public License for more details.
+
+ You should have received a copy of the GNU Affero General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+<html>
+  <head>
+    <title>Multi Mouse - How many mice can I mouse eater eat?</title>
+
+     <LINK rel="stylesheet" href="/static/css/game.css" type="text/css" > 
+
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.5.1/jquery.min.js"></script> <!-- jquery -->       
+    <script src="/static/js/json.js"></script> <!-- for ie -->
+    <script src="/socket.io/socket.io.js"></script> <!-- sockets -->
+    <script src="/static/js/jquery.color.js" type="text/javascript"></script> 
+    <script src="/static/js/countdown.js" type="text/javascript"></script>
+    <script>
+
+    // Saves the score of the users
+    var score = [];   
+    // The userid of the player
+    var ownUserid=null;
+    // The id of the catcher
+    var catcherid=null;
+    // The unix time of the last catch, needs to get ensure there is a 2 second break between the catches
+    var catchTime=-1;
+    // A array with the userids of all players
+    var users = [];
+    // The unix time the last ping was send, needs the calculate the difference to the pingback
+    var timePingStart = -1;
+    // A flag to show if the connection is etablished
+    var connectionEtablished=false;
+    // The socket from Socket.io
+    var socket = null;
+    // The latency, calculated out of the last 5 pings
+    var latency = -1;
+    // Saves the last 5 pingtimes
+    var pingtimes=[];
+    // A flag to show if the disconnect is wanted, that means that the user was idle > 30s
+    var wantedDisconnect = false;  
+    // The last mouse position that was send to the server
+    var lastMouseX=-1, lastMouseY=-1;
+    // The mouse position in relative to the playground
+    var mouseX=-1, mouseY=-1;
+    // The last Time the mouse was moved, needed to test if the user is idle
+    var timeMouseMoved = -1;
+    // The last Time the collision detection function was called, needed to get ensure its called even there is no animation
+    var collisionDetectionTime=-1; 
+    // An array that saves when the user have last move his mouse
+    var userslastMove = [];
+    // Scoreboard values for UI updates
+    var totalheight = 250;
+    var width = 10;
+    // A Flag that shows if the game is breaking
+    var inBreak = false;
+   
+   
+    //The Width and High of the iFrame
+    var globalWidth;
+    var globalHeight;
+    
+    setInterval(collisionDetectionWhileStanding,100);    
+    setInterval(ceckForNewMousePosition,200);  
+    setInterval(updateScore,1000);
+    setInterval(checkIfUserIsIdle,1000);
+    setInterval(startPing,2000);
+    
+    /**
+     *
+     */
+    $(document).ready(function() {
+      $("body").mousemove(mousemoved);
+      
+      globalWidth = $('#playground').width();
+      globalHeight = $('#playground').height();
+      
+      connect();
+    });
+    
+    /**
+     * Updates the Score of all Users each second
+     */
+    function updateScore()
+    {
+      if(!connectionEtablished)
+        return;
+        
+      if(inBreak)
+        return;  
+        
+      var totalscore = 0;   
+        
+      var pointsOfFirst=0;
+      var pointsOfSecond=0;
+      var pointsOfThird=0;
+        
+      for(var i=0 ; i<users.length ; i++)
+      {
+        if(score[users[i]] == null)
+        {
+          score[users[i]]=0;
+          
+          log(users[i]);
+          
+          if(users[i] == "you")
+          {
+            socket.send('score:' + 0);
+          }  
+        }   
+      
+        //log("lasttimeusermove: " + userslastMove[users[i]]);
+        //log("time: " + new Date().getTime());
+      
+        if(users[i] != catcherid && !(users[i] == "you" && catcherid == ownUserid) && (new Date().getTime() - userslastMove[users[i]] < 1000))
+        {
+          score[users[i]]++;
+        }          
+        
+        if(score[users[i]] > pointsOfFirst)
+        {
+          pointsOfThird=pointsOfSecond;
+          pointsOfSecond=pointsOfFirst;
+          pointsOfFirst=score[users[i]];
+        }
+        else if(score[users[i]] > pointsOfSecond)
+        {
+          pointsOfThird=pointsOfSecond;
+          pointsOfSecond=score[users[i]];
+        }
+        else if(score[users[i]] > pointsOfThird)
+        {
+          pointsOfThird=score[users[i]];
+        }
+        
+        totalscore += score[users[i]];
+      }
+      
+      for(var i=0 ; i<users.length ; i++)
+      {
+        var text = score[users[i]] + " points";
+        
+        if(score[users[i]] == pointsOfFirst)
+        {
+          text+=", 1st :)"
+        }
+        else if(score[users[i]] == pointsOfSecond)
+        {
+          text+=", 2nd"
+        }
+        else if(score[users[i]] == pointsOfThird)
+        {
+          text+=", 3th"
+        }
+      
+        $('#score_sum_' + users[i]).text(text);
+        
+        var thisscore;
+        
+        //if there is only one player and zero total score, give this player all
+        if(totalscore == 0 && users.length==1)
+        {
+          thisscore = 100;
+        }
+        else
+        {
+          thisscore = 100 / totalscore;
+          thisscore = thisscore * score[users[i]];
+        }
+
+        //console.log(score[users[i]] + "'s score is" +thisscore);
+        $('#score_' + users[i]).animate({height: thisscore +"%"});
+      }
+    }
+
+    /**
+     * Chooses a random color for the user
+     */ 
+    function randc(){
+      colors = ['#ffc7c7','#fff1c7','#e3ffc7','#c7ffd5','#c7ffff','#c7d5ff','#e3c7ff','#ffc7f1','#d97979','#d9c179','#a9d979','#79d991','#79d9d9','#7991d9','#a979d9','#d979c1'];
+      
+      var color = colors[Math.floor(Math.random()*colors.length)];
+      return color;
+    }
+    
+    /**
+      * Handles messages from the server
+      * @param obj The Message from the server
+      * @param initalize A flag to show if the playground is already inialized
+      */
+    function message(obj, initalize){
+    
+      if(obj == null)
+        return;
+    
+      if(obj.pingback == true)
+      {
+        pingedBack();
+        return;
+      }
+     
+      log(obj);
+     
+      if(obj.message != null)
+      {
+        var data = obj.message[1].split(':');
+        var userid = obj.message[0];
+        
+        if(data[0] == "pos")
+        {          
+          ensureMouseExists(userid);
+         
+          if(userid == ownUserid)
+            userid = "you";
+            
+          userslastMove[userid] = new Date().getTime();
+          
+          var x = Number(data[1]);
+          var y = Number(data[2]);  
+          var time = Number(data[3])-latency;
+          
+          if(time < 0)
+            time = 0;
+          
+          var playground = document.getElementById('playground');
+
+          $('#mouse_' + userid).stop(true, false);
+          
+          if(userid == "you")
+            $('#mouse_you').animate({left: x + "px", top: y + "px"}, {duration: time, easing: "linear", step: collisionDetection});
+          else
+            $('#mouse_' + userid).animate({left: x + "px", top: y + "px"}, time, "linear");
+        }
+        else if(data[0] == "color")
+        {
+          ensureMouseExists(userid);
+        
+          $('#mouse_' + userid).css({'background-color' : data[1]});
+          $('#score_color_' + userid).css({'background-color' : data[1]});
+        }
+        else if(data[0] == "score")
+        {
+          ensureMouseExists(userid);
+          
+          if(userid == ownUserid)
+            userid = "you";
+          
+          score[userid] = Number(data[1]);
+        }
+        else if(data[0] == "global" && data[1] == "catcher")
+        {
+          ensureMouseExists(data[2]);
+          catcherid = data[2];
+          
+          setCatcher(catcherid, initalize);
+        }
+        else
+        {
+           log("Unkown Message type");
+           log(obj);
+        }
+      }
+      else if(obj.announcement != null)
+      {
+        var data = obj.announcement.split(' ');
+        var userid = data[0];
+        var type = data[1];
+        
+        if(type == "disconnected")
+        {
+          $('#mouse_' + userid).fadeOut(1000);
+          $('#mouse_' + userid).remove();
+          
+          for(var i=0 ; i<users.length ; i++)
+          {
+            if(users[i]==userid)
+            {
+              users.splice(i,1);
+              break;
+            }
+          }
+          
+          score[userid] = undefined;
+          $('#score_' + userid).fadeOut(1000);
+          $('#score_' + userid).remove();
+        }
+      }
+      else if(obj.userid != null)
+      {
+        ownUserid=obj.userid;
+        log("userid: " + ownUserid);
+      }
+      else if(obj.break != null)
+      {
+        showScoreboard(Number(obj.break));
+      }
+      else
+      {
+        log("Unkown Message type");
+        log(obj);
+      }
+   }
+   
+   /**
+     * Sets the new Catcher
+     * @param userid the userid of the new catcher
+     * @param initalize a flag to show if the playground is initalized, if yes, it does a flash to show that the catcher have changed
+     */
+   function setCatcher(userid, initalize)
+   {
+     catchTime=new Date().getTime();
+     $(".catcher").removeClass("catcher");
+          
+     if(userid == ownUserid)
+     {
+       $("#mouse_you").addClass("catcher");
+       //$("#score_color_you").addClass("catcher");
+     }
+     else{
+       $("#mouse_" + userid).addClass("catcher");
+       //$("#score_color_" + userid).addClass("catcher");
+     }
+     
+     if(!initalize)
+     {
+       $("#playground").css("background-color", "#FFFFFF");
+       $("#playground").animate({backgroundColor: "black"}, 1000);
+     }
+   }
+   
+   /**
+     * Simple wrapper for logging, ensure javascript don't crash when there is no console.log
+     */
+   function log(str)
+   {
+     if(window.console)
+       console.log(str);
+   }      
+   
+   /**
+     * Check if the mouse of a user exists, and if not creates it
+     */
+   function ensureMouseExists(userid)
+   {    
+     if(userid == ownUserid && ownUserid != null)
+       userid = "you";  
+     
+     if($('#mouse_' + userid).length == 0)
+     {    
+       var color = "#000000";  
+         
+       if(userid == "you")
+       {
+        	color = randc();
+        	socket.send('color:' + color);       
+       }
+       
+       var left = Math.round(Math.random()*(globalWidth-10));
+       var top = Math.round(Math.random()*(globalHeight-10));
+       
+       $('#playground').append('<div class="dot" style="background-color:'+color+';top:' + top + 'px;left:' + left + 'px "id="mouse_'+ userid +'"/\>');
+       $('#scoreboard').append('<div id="score_' + userid + '"><div id="score_color_' + userid + 
+          '" class="score_color" style="background-color: ' + color + '">&nbsp;<div class="score_points" id="score_sum_' + userid + '">0</div></div></div>');
+       users.push(userid);
+     }
+   }
+   
+   /**
+     * Start to send a Ping
+     */
+   function startPing()
+   {
+      if(!connectionEtablished)
+        return;
+   
+      timePingStart=new Date().getTime();
+      socket.send("ping");
+   }
+   
+   function showScoreboard(sec)
+   {  
+     // here we should freeze the points
+     
+     inBreak = true;
+     
+     $('#newgamein').countdown({seconds: sec});
+     $('#scoreboard').animate({width: 100 + "%"});
+     $('.score_points').show();
+     $('#newgameincont').show();
+     $('#newgamein').show();
+     
+     
+     
+     setTimeout(function () {
+       $('#scoreboard').animate({width: "20px"});
+       $('#newgameincont').hide();
+       $('#newgamein').hide();
+       $('.score_points').hide();
+       
+       inBreak = false;
+       
+       for(i in score)
+       {
+         score[i] = 0;
+       }
+       
+       // here we should reset the points back to 0 or something
+     }, sec * 1000);
+   }
+   
+   /**
+     * Is called when there is a pingback of the server. Calculates the new latency
+     */
+   function pingedBack()
+   {
+     timePingBack=new Date().getTime();
+     var pingLatency = (timePingBack - timePingStart)/2;
+     
+     pingtimes.push(pingLatency);
+     if (pingtimes.length > 5) pingtimes.shift();
+     
+     var pingSum=0;
+     
+     for(var i=0;i<pingtimes.length;i++)
+     {
+       pingSum+=pingtimes[i];
+     }
+     
+     latency=Math.round(pingSum/pingtimes.length);
+     $('#latency').text(latency);
+   }   
+    
+   /**
+     * Check If the User is idle for more than 30 seconds
+     */
+   function checkIfUserIsIdle()
+   {
+     if(timeMouseMoved != -1 && connectionEtablished && (new Date().getTime()-timeMouseMoved) > 30000)
+     {
+       //wantedDisconnect = true;
+       //socket.disconnect();
+     }
+   }
+      
+   /**
+     * Is called when the mouse moves, Saves the new Position of the mouse, relative to the playground
+     */
+   function mousemoved(event)
+   {
+     if(!connectionEtablished)
+       return;
+      
+     var playground = document.getElementById("playground");
+      	 
+     ensureMouseExists("you"); 	 
+
+     mouseX = event.clientX - playground.offsetLeft - 10;
+	   mouseY = event.clientY - playground.offsetTop -10;
+	    
+	   timeMouseMoved = new Date().getTime();
+      
+     if(mouseX < 0)
+	     mouseX = 0;
+     //else if(mouseX > 265)(globalHeight-35)
+     //  mouseX = 265;
+     else if(mouseX > (globalWidth-40))
+       mouseX = (globalWidth-40);      
+           
+     if(mouseY < 0)
+       mouseY = 0;
+     else if(mouseY > (globalHeight-20))
+       mouseY = (globalHeight-20);
+   };
+    
+   /**
+     * Check if the last time the collisionDection was called is > 500ms, if yes it calls the collisionDetection
+     */
+   function collisionDetectionWhileStanding()
+   {
+      if(new Date().getTime() - collisionDetectionTime > 500)
+        collisionDetection(null, null);
+   }
+      
+   /**
+     * Check if a collision happend
+     */
+   function collisionDetection(now, fx)
+   {
+     if(connectionEtablished && catcherid == ownUserid && (new Date().getTime() - catchTime) > 2000)
+     {
+       collisionDetectionTime=new Date().getTime();
+      
+       var minX=$("#mouse_you").offset().left -3;
+       var minY=$("#mouse_you").offset().top -3;
+        
+       var maxX=minX+10 + 6;
+       var maxY=minY+10 + 6;
+
+       for(var i=0; i<users.length; i++)
+       {
+         if(users[i] == "you")
+           continue;
+          
+         var pointA_X = $("#mouse_" + users[i]).offset().left - 3;
+         var pointA_Y = $("#mouse_" + users[i]).offset().top - 3;
+          
+         var pointB_X = pointA_X + 10 + 6;
+         var pointB_Y = pointA_Y;
+          
+         var pointC_X = pointA_X;
+         var pointC_Y = pointA_Y + 10 + 6;
+          
+         var pointD_X = pointA_X + 10 + 6;
+         var pointD_Y = pointA_Y + 10 + 6;
+          
+         if(
+           (pointA_X > minX && pointA_X < maxX && pointA_Y > minY && pointA_Y < maxY) ||
+           (pointB_X > minX && pointB_X < maxX && pointB_Y > minY && pointB_Y < maxY) ||
+           (pointC_X > minX && pointC_X < maxX && pointC_Y > minY && pointC_Y < maxY) ||
+           (pointD_X > minX && pointD_X < maxX && pointD_Y > minY && pointD_Y < maxY)
+         )
+         {
+           catchTime = new Date().getTime();
+           socket.send('global:catcher:'+users[i]);
+           break;
+         }
+       }
+     }
+   }  
+      
+   /**
+     * Check the mouse moved since the last 200 ms, and if it moved more than 10 pixels
+     * If yes, It sends the new mouse position to the server
+     */
+   function ceckForNewMousePosition()
+   {    
+     if(inBreak)
+       return;
+   
+     if(Math.abs(lastMouseX - mouseX) > 5 || Math.abs(lastMouseY - mouseY)>5)
+     {
+       ensureMouseExists("you");
+       
+       var startX=Number($('#mouse_you').css("left").replace("px",""));
+       var startY=Number($('#mouse_you').css("top").replace("px",""));
+        
+       var goalX=mouseX;
+       var goalY=mouseY;
+	 
+       var goalVectorX=goalX-startX;
+       var goalVectorY=goalY-startY;
+	 
+       var goalVectorLength=Math.sqrt(goalVectorX*goalVectorX + goalVectorY*goalVectorY);
+       var time=Math.round(goalVectorLength*3);
+        
+       if(time < 500)
+         time = 500;
+
+       socket.send('pos:'+mouseX+':'+mouseY +':'+time);
+          
+       lastMouseX=mouseX;
+       lastMouseY=mouseY;
+     }
+   }      
+           
+   /**
+     * Connect to the server via socket.io
+     */ 
+   function connect()
+   {    
+     socket = new io.Socket();
+     socket.connect();
+      
+     socket.on('connect', function(obj)
+     { 
+       //What's the room Number?
+       var roomNum= document.URL.substring(document.URL.lastIndexOf("/")+1);
+       
+       //send handshake
+       socket.send({type:"handshake", "data":{"roomNum":roomNum}});
+     }); 
+      
+     socket.on('message', function(obj)
+     {
+       if ('buffer' in obj)
+       {
+         //Fade in everything
+         $('#connection').remove();
+         $('#playground').fadeIn();
+         $('#latencycont').fadeIn();
+         $('#scoreboard').fadeIn();
+
+         connectionEtablished=true;
+         
+         //Display the transport type
+         $('#transporttype').text(socket.transport.type); 
+       
+         for (var i in obj.buffer) 
+           message(obj.buffer[i], true);  
+       } 
+       else
+       {
+         message(obj, false);
+       }
+     });  
+      
+     socket.on('disconnect', function()
+     {
+       connectionEtablished=false;
+       $("#playground").css("background-color", "gray");
+         
+       if(wantedDisconnect)
+       {
+         alert("Disconnect!\nYou have not moved your mouse since 30 seconds.\nPress F5 for a reconnect");
+       }
+       else
+       {
+         alert("Disconnect!\nPress F5 for a reconnect");
+       }
+     });  
+   }
+
+   /**
+     *
+     */
+   function esc(msg)
+   {
+     return msg.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+   }
+   function showembed()
+   {
+   $('#embedframe').show();
+   var embedvalue = "&lt;iframe src=&quot;http://game.mclear.co.uk/static/animate.html&quot; width=&quot;400&quot; height=&quot;200&quot;&gt;&lt;/iframe&gt;";
+   $('#embedcode').html("<input type='text' class='fu' value='"+embedvalue+"'><br/><br/>Set your own width and height");
+   }
+   function closeembed()
+   {
+   $('#embedframe').hide();
+   }
+    </script>
+    </head>
+    <body>
+      <div id="wrapper">
+        <!--<p id="explain"><b>Having red = fail</b></p>-->
+        <div id="connection"><p>Connecting...</p></div>
+      
+        <div id="scoreboard">
+          <!--<h3>Scoreboard<h3>-->
+        </div>
+      
+        <div id="playground">
+        	&nbsp;
+        </div>
+        <div id="newgameincont">END OF THE ROUND! - NEW ROUND STARTS IN  
+		      <div id="newgamein"></div> SECONDS
+	      </div>
+        
+       <!--<p id="latencycont"><b>Latency: <span id="latency">0</span>ms, using <span id="transporttype">-</span></b></p>-->
+       <div id="embedframe"><a href="javascript:void(0);" onClick="closeembed();">Close this awful frame</a><br/><br/><div id="embedcode"></div></div>
+      </div>
+      <!--<input type="submit" value="end round" onClick="showScoreboard()">-->
+  <div id="verybottom"><a target="_blank" href="http://wiki.primaryt.co.uk/w/Game">About</a> | <a href="javascript:void(0);" onClick="showembed()">Embed</a></div>
+  </body>
+</html>

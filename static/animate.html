@@ -1,0 +1,99 @@
+<!doctype html>
+
+<!--
+ Copyright 2011 Primary Technology Ltd
+
+ This program is free software: you can redistribute it and/or modify
+ it under the terms of the GNU Affero General Public License as
+ published by the Free Software Foundation, either version 3 of the
+ License, or (at your option) any later version.
+
+ This program is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU Affero General Public License for more details.
+
+ You should have received a copy of the GNU Affero General Public License
+ along with this program.  If not, see <http://www.gnu.org/licenses/>.
+-->
+
+<html>
+  <head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/1.5.1/jquery.min.js"></script> <!-- jquery -->
+  </head>
+  <body id=gameframe>
+  <script text="text/javascript">
+  $(window).load(function() {
+  // get document width & height
+  var x = $('#playground').width();
+  var y = $('#playground').height();
+  // dont let it get too close to the edges
+  x = x-40;
+  y = y-20;
+  // get random x - rx and ry
+  function getRandom(min, max)
+  {		
+     var randomNum = Math.random() * (max-min); 
+     // Round to the closest integer and return it
+     return(Math.round(randomNum) + min); 
+  }
+  function animate(id)
+  {
+    var rx = getRandom(1,x);
+    var ry = getRandom(1,y);
+    $('#obj'+id).animate({left: rx + "px", top: ry + "px"}, "linear");
+  // if id is 1 then also animate the 
+    if (id == 1){
+      rx = rx+20;
+      ry = ry-5;
+      $('#catcherlabel').animate({left: rx + "px", top: ry + "px"}, "linear");
+    }
+  }
+  function animateall(){
+    animate(1);
+    animate(2);
+    animate(3);
+  // make green and blue have score
+   var obj2score = getRandom(30,70);
+   var obj3score = 100-obj2score;
+   $('#obj2s').animate({height: obj2score + "%"}, "linear");
+   $('#obj3s').animate({height: obj3score + "%"}, "linear");
+  }
+  // every second do our animations
+  setInterval(function(){animateall()},2000);
+  });
+  </script>
+  <style type="text/css">
+  body{margin:0;overflow:hidden;font-family:arial;}
+  #gameframe{height:100%;width:100%; }
+  #playground{position:absolute;top:0;left:0;width:100%;height:100%;background-color:#000;}
+  .player{width:10px;height:10px;position:absolute;z-index:1;top:150px;left:100px;}
+  #obj1{background-color:white;border: solid red 3px;top:10px;left:0;}
+  #obj2{background-color:green;}
+  #obj3{background-color:blue;}
+  #playstrip{position:absolute;top:100px;width:100%;text-align:center;}
+  #playbutton{color:#fff;font-size:40px;cursor:pointer;cursor:hand;z-index:99999;}
+  #playbutton a:link{color:#fff;text-decoration:none;}
+  #playbutton a:hover{text-decoration:underline;}
+  #playbutton a:visited{color:#fff;}
+  #scoreboard{position:absolute:top:0px;right:0px;height:100%;background-color:#000;float:right;width:20px;}
+  .objs{width:20px;height:50%;z-index:1;}
+  #obj1s{background-color:red;display:none;}
+  #obj2s{background-color:green;}
+  #obj3s{background-color:blue;}
+  #scoreboardlabel{position:absolute;top:10px;right:30px;font-size:20px;background-color:#000;color:#fff;}
+  #catcherlabel{position:absolute;font-size:20px;top:0px;left:20px;background:#000;color:#fff;}
+  </style>
+  <div id="playground">
+    <div class="player" id="obj1"></div>
+    <div class="player" id="obj2"></div>
+    <div class="player" id="obj3"></div>
+    <div id="playstrip">
+      <div id="playbutton"><a onClick=window.location.href='http://game.mclear.co.uk?source='+window.location;>Play</a></div>
+    </div>
+  <div id="scoreboard"><div id="obj1s" class="objs"></div><div id="obj2s" class="objs"></div><div id="obj3s" class="objs"></div></div>
+  </div>
+  <div id="scoreboardlabel">Scoreboard &rarr;</div>
+  <div id="catcherlabel">&larr;Avoid the catcher!</div>
+  </body>
+</html>

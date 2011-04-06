@@ -1,0 +1,181 @@
+/*
+ * Copyright 2011 Primary Technology Ltd
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+*{
+  font-family:Verdana, Sans-Serif;
+  color: white;
+}
+
+body {
+  background-color:gray;
+  text-align:center;
+  margin:0;
+  height:100%;
+  overflow-y:hidden;
+  overflow-x:hidden;
+}
+
+.dot {
+  height: 10px;
+  width: 10px;
+  background-color:#000000;
+  /*position:absolute;*/
+  position:absolute;
+  left:0;
+  top:0;
+  float:left;
+  border: 1px outset white;
+  z-index:7;
+}
+
+#mouse_you, {
+  border-top: 3px solid white;
+  border-bottom: 3px solid white;
+  border-left: 3px solid black;
+  border-right: 3px solid black;
+  z-index:8;
+  margin: 0px !important;
+}
+
+#playground {
+  /*width:280px;
+  height:250px;*/
+  width:100%;
+  height:100%;
+/*  border: 3px ridge white;*/
+  display:none;
+  position:relative;
+  background-color:black;
+  margin:0px;
+  margin-right:20px;
+}
+
+.catcher {
+  border-left: 3px solid red !important;
+  border-right: 3px solid red !important;  
+  border-top: 3px solid red;
+  border-bottom: 3px solid red;
+  z-index:9;
+  margin: 0px !important;
+}
+
+#latencycont {
+	display:none;
+}
+
+#scoreboard
+{
+  display:none;
+  width:20px;
+  height:100%;
+  position:absolute;
+  right:0px;
+  background-color:#fff;
+  z-index:999999;
+}
+
+#scoreboard > div
+{
+/*  margin-bottom: 15px;*/
+}
+
+.score_color {
+  height:100%;
+  width:100%;
+  float:left;
+  margin: 0px;
+  cursor:pointer;
+}
+
+#wrapper {
+  /*width: 300px;*/
+  width:100%;
+  height:100%;
+  position:absolute;
+  top:0px;
+  left:0px;
+}
+
+#newgameincont {
+  display:none;
+  position:absolute;
+  top:0px;
+  left:0px;
+  height:20px;
+  text-align:center;
+  width:100%;
+  z-index:999999;
+  opacity:0.7;
+  background-color:#000;
+}
+
+#newgamein
+{
+  display:inline;
+  font-weight:bold;
+}
+
+.score_points{
+  display:none;
+  /*background-color:#000;*/
+  font-weight:bold;
+  font-size:1.5em;
+  color:black;
+}
+
+#verybottom
+{
+background-color:#000;
+position:absolute;
+bottom:0px;
+right:25px;
+color:#fff;
+}
+
+#verybottom:a{
+color:#fff;
+}
+
+#verybottom:visited{
+color:#fff;
+}
+
+#embedframe{
+color:#000;
+width:400px;
+height:200px;
+z-index:99999;
+background-color:darkgrey;
+position:absolute;
+top:0;
+left:0;
+display:none;
+margin:0 auto;
+}
+
+#embedframe:a{
+color:#000;
+}
+#embedframe:visited{
+color:#000;
+}
+
+.fu
+{
+color:#000;
+width:380px;
+}
