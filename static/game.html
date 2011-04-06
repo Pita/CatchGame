@@ -448,8 +448,8 @@
    {
      if(timeMouseMoved != -1 && connectionEtablished && (new Date().getTime()-timeMouseMoved) > 30000)
      {
-       //wantedDisconnect = true;
-       //socket.disconnect();
+       wantedDisconnect = true;
+       socket.disconnect();
      }
    }
       
@@ -622,11 +622,11 @@
          
        if(wantedDisconnect)
        {
-         alert("Disconnect!\nYou have not moved your mouse since 30 seconds.\nPress F5 for a reconnect");
+         window.parent.window.alert("Disconnect!\nYou have not moved your mouse since 30 seconds.\nPress F5 for a reconnect");
        }
        else
        {
-         alert("Disconnect!\nPress F5 for a reconnect");
+         window.parent.window.alert("Disconnect!\nPress F5 for a reconnect");
        }
      });  
    }
